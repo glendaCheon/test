@@ -1,72 +1,59 @@
 import io.reactivex.Observable;
-import io.reactivex.ObservableEmitter;
 import io.reactivex.ObservableOnSubscribe;
 import io.reactivex.ObservableSource;
 import io.reactivex.disposables.Disposable;
-import io.reactivex.functions.Consumer;
 import io.reactivex.functions.Function;
 import io.reactivex.schedulers.Schedulers;
 
-import java.lang.reflect.Field;
-
 public class MainClass {
-    public static void main(String[] args) throws InterruptedException {
-        System.out.println("Run Main Class");
-        //받아서 dispose 할 것인지 알려줄 수 있음.
-//        Disposable disposable =  Observable.just("Observable")
-//                                            .subscribeOn(Schedulers.newThread()) //스레드가 동작하기 전 dipose돼서 Observable이 출력되지 않음.
-//                                            .subscribe(s -> print(s)); //결과값을 return.
-//        System.out.println("end");
-//        try{
-//            Thread.sleep(1*1000); //1초
-//        }catch (InterruptedException e){
-//            e.printStackTrace();
-//        }
-//
-//        disposable.dispose();
-
-        //Create Obserbable
+    public static void main(String[] args) {
+        System.out.println("Run Main Class start");
+        // Create Observable
         Observable<Integer> observable =
-                Observable.create(emitter -> {
-                    //1~10까지 배출 후 완료하겠다
-                    for(int i = 0; i < 10 ; i++){
-                        emitter.onNext(i);
-                        if(i >=9){
-                            throw new Exception(i + " is greater than 9");
-                        }
-                    }
+                Observable.create((ObservableOnSubscribe<Integer>) emitter -> {
+                    for(int i = 0 ; i < 10; i++) {
+                        if(i >= 9) {
+                            throw new Exception("i is greater than 9");
+                        } else {
+                            emitter.onNext(i);
+                        }                    }
                     emitter.onComplete();
                 });
 
         Disposable db = observable
-                        .onErrorReturn(new Function<Throwable, Integer>() {
-                            @Override
-                            public Integer apply(Throwable throwable) throws Exception {
-                                return -1;
-                            }
-                        })
-                        .map(new Function<Integer, Integer>() {
-                            @Override
-                            public Integer apply(Integer data) throws Exception {
-                                return data < 0 ? 100 : data;
-                            }
-                        })
-                        .subscribe(s -> System.out.println(s),
-                                err -> System.out.println("err:"+ err),
-                                 () -> System.out.println("Complete"));
-        try{
-            Thread.sleep(1*1000); //1초
-        }catch (InterruptedException e){
+                .doOnNext(integer -> checkThreadName())
+                .onErrorReturn((throwable -> -1))
+                .map((data) -> data < 0 ? 100 : data)
+                .observeOn(Schedulers.newThread())
+                .map( data -> data * 2)
+                .doOnNext(integer -> checkThreadName())
+                .observeOn(Schedulers.newThread())
+                .flatMap(new Function<Integer, ObservableSource<?>>() {
+                    @Override
+                    public ObservableSource<?> apply(Integer data) throws Exception {
+                        return Observable.just(data * 2);
+                    }
+                })
+                .doOnNext(integer -> checkThreadName())
+                .subscribeOn(Schedulers.newThread())
+                .subscribe(s -> System.out.println(s),
+                        error -> System.out.println("Error : " + error),
+                        () -> System.out.println("Complete"));
+
+        System.out.println("Run Main Class end");
+        try {
+            Thread.sleep(3000);
+        } catch (InterruptedException e) {
             e.printStackTrace();
         }
         db.dispose();
+    }
 
-
-        System.out.println("Run Main Class End");
+    private static void checkThreadName() {
+        System.out.println(Thread.currentThread().getName());
     }
 
 //    private static void print(T data) {
 //        System.out.println(data);
 //    }
-
 }
